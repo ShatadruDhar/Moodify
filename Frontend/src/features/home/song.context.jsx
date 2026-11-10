@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { songsByMood } from "./song.catalog";
 import { SongContext } from "./song-context.js";
 
 export const SongContextProvider = ({ children }) => {
 
-    const [ song, setSong ] = useState(songsByMood.happy)
+    const [ song, setSong ] = useState(null)
 
     const [ loading, setLoading ] = useState(false)
 

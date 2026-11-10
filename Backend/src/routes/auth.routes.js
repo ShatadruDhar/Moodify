@@ -10,7 +10,7 @@ router.post('/login', authController.loginUser)
 
 router.get("/get-me", authMiddleware.authUser, authController.getMe)
 
-router.get("/logout", authController.logoutUser)
+router.post("/logout", authMiddleware.authUser, authController.logoutUser)
 
 
 module.exports = router;

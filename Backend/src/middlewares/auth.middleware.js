@@ -1,7 +1,6 @@
-const blacklistModel = require("../models/blacklist.model");
-const userModel = require("../models/user.model");
 const redis = require("../config/cache")
 const jwt = require("jsonwebtoken");
+const { getRevocationKey } = require("../utils/token-revocation")
 
 
 async function authUser(req, res, next) {
@@ -13,28 +12,22 @@ async function authUser(req, res, next) {
         })
     }
 
-    const isTokenBlacklisted = await redis.get(token)
-
-    if (isTokenBlacklisted) {
-        return res.status(401).json({
-            message: "Invalid token"
-        })
-    }
-
+    let decoded
     try {
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET,
-        )
-
-        req.user = decoded
-
-        next()
-    } catch (err) {
+        decoded = jwt.verify(token, process.env.JWT_SECRET)
+    } catch {
         return res.status(401).json({
             message: "Invalid token"
         })
     }
+
+    const isTokenRevoked = await redis.get(getRevocationKey(token, decoded))
+    if (isTokenRevoked) {
+        return res.status(401).json({ message: "Invalid token" })
+    }
+
+    req.user = decoded
+    return next()
 }
 
 module.exports = { authUser }

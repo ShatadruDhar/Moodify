@@ -1,8 +1,9 @@
 const userModel = require("../models/user.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const blacklistModel = require("../models/blacklist.model")
+const { randomUUID } = require("node:crypto")
 const redis = require("../config/cache")
+const { getRevocationKey } = require("../utils/token-revocation")
 
 const cookieOptions = {
     httpOnly: true,
@@ -41,7 +42,8 @@ async function registerUser(req, res) {
         },
         process.env.JWT_SECRET,
         {
-            expiresIn: "3d"
+            expiresIn: "3d",
+            jwtid: randomUUID()
         }
     )
 
@@ -90,7 +92,8 @@ async function loginUser(req, res) {
         },
         process.env.JWT_SECRET,
         {
-            expiresIn: "3d"
+            expiresIn: "3d",
+            jwtid: randomUUID()
         }
     )
 
@@ -118,10 +121,11 @@ async function getMe(req, res) {
 async function logoutUser(req, res) {
 
     const token = req.cookies.token
-
+    const remainingLifetimeSeconds = Math.max(0, req.user.exp - Math.floor(Date.now() / 1000))
+    if (remainingLifetimeSeconds > 0) {
+        await redis.set(getRevocationKey(token, req.user), "1", "EX", remainingLifetimeSeconds)
+    }
     res.clearCookie("token", cookieOptions)
-
-    await redis.set(token, Date.now().toString(), "EX", 60 * 60)
 
     res.status(200).json({
         message: "logout successfully."

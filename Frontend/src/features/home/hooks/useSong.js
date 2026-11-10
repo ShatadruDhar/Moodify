@@ -1,25 +1,34 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { SongContext } from "../song-context.js";
-import { songsByMood } from "../song.catalog";
+import { getSong } from "../service/song.api";
 
 
 export const useSong = () => {
     const context = useContext(SongContext)
 
     const { loading, setLoading, song, setSong } = context
+    const [ error, setError ] = useState("")
 
     async function handleGetSong({ mood }) {
-        const matchingSong = songsByMood[mood?.toLowerCase()]
-        if (!matchingSong) return
-
         setLoading(true)
+        setError("")
         try {
+            const matchingSong = await getSong({ mood: mood?.toLowerCase() })
+            if (!matchingSong) {
+                setError("No song is available for that mood yet.")
+                return
+            }
             setSong(matchingSong)
+        } catch (requestError) {
+            setError(
+                requestError.response?.data?.message ||
+                "Unable to load a song. Please try again."
+            )
         } finally {
             setLoading(false)
         }
     }
 
-    return ({ loading, song, handleGetSong })
+    return ({ loading, song, error, handleGetSong })
 
 }

@@ -6,12 +6,8 @@ const redis = new Redis({
     password: process.env.REDIS_PASSWORD
 })
 
-redis.on("connect", () => {
-    console.log("server is connected to redis")
-})
-
 redis.on("error", (err) => {
-    console.log(err)
+    console.error("Redis connection error:", err)
 })
 
 module.exports = redis

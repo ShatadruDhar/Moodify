@@ -1,67 +1,91 @@
-import {
-    FaceLandmarker,
-    FilesetResolver
-} from "@mediapipe/tasks-vision";
+import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
 
+export const MEDIAPIPE_VERSION = "0.10.32"
+export const DETECTION_WINDOW_MS = 1500
 
-export const init = async ({ landmarkerRef, videoRef, streamRef }) => {
-    const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-    );
+export const init = async (video) => {
+    let landmarker
+    let stream
 
-    landmarkerRef.current = await FaceLandmarker.createFromOptions(
-        vision,
-        {
+    try {
+        const assetsPath = `/mediapipe/${MEDIAPIPE_VERSION}`
+        const vision = await FilesetResolver.forVisionTasks(`${assetsPath}/wasm`)
+        landmarker = await FaceLandmarker.createFromOptions(vision, {
             baseOptions: {
-                modelAssetPath:
-                    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+                modelAssetPath: `${assetsPath}/face_landmarker.task`,
             },
             outputFaceBlendshapes: true,
             runningMode: "VIDEO",
-            numFaces: 1
-        }
-    );
+            numFaces: 1,
+        })
 
-    streamRef.current = await navigator.mediaDevices.getUserMedia({ video: true });
-    videoRef.current.srcObject = streamRef.current;
-    await videoRef.current.play();
-};
+        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        video.srcObject = stream
+        await video.play()
 
-export const detect = ({ landmarkerRef, videoRef, setExpression }) => {
-    if (!landmarkerRef.current || !videoRef.current) return;
-
-    const results = landmarkerRef.current.detectForVideo(
-        videoRef.current,
-        performance.now()
-    );
-
-    if (results.faceBlendshapes?.length > 0) {
-        const blendshapes = results.faceBlendshapes[ 0 ].categories;
-
-        const getScore = (name) =>
-            blendshapes.find((b) => b.categoryName === name)?.score || 0;
-
-        const smileLeft = getScore("mouthSmileLeft");
-        const smileRight = getScore("mouthSmileRight");
-        const jawOpen = getScore("jawOpen");
-        const browUp = getScore("browInnerUp");
-        const frownLeft = getScore("mouthFrownLeft");
-        const frownRight = getScore("mouthFrownRight");
-
-        console.log(getScore("mouthFrownLeft"))
-
-        let currentExpression = "Neutral";
-
-        if (smileLeft > 0.5 && smileRight > 0.5) {
-            currentExpression = "happy";
-        } else if (jawOpen > 0.2 && browUp > 0.2) {
-            currentExpression = "surprised";
-        } else if (frownLeft > 0.0001 && frownRight > 0.0001) {
-            currentExpression = "sad";
-        }
-
-        setExpression(currentExpression);
-
-        return currentExpression
+        return { landmarker, stream }
+    } catch (error) {
+        landmarker?.close()
+        stream?.getTracks().forEach((track) => track.stop())
+        throw error
     }
-};
+}
+
+export const captureBlendshapes = ({ landmarker, video }) => {
+    if (!landmarker || !video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        return null
+    }
+
+    const results = landmarker.detectForVideo(video, performance.now())
+    const categories = results.faceBlendshapes?.[0]?.categories
+    if (!categories?.length) return null
+
+    return Object.fromEntries(
+        categories.map(({ categoryName, score }) => [ categoryName, score ])
+    )
+}
+
+export const averageBlendshapes = (samples) => {
+    if (samples.length === 0) return null
+
+    const sums = new Map()
+    for (const sample of samples) {
+        for (const [ name, score ] of Object.entries(sample)) {
+            sums.set(name, (sums.get(name) || 0) + score)
+        }
+    }
+
+    return Object.fromEntries(
+        [ ...sums ].map(([ name, total ]) => [ name, total / samples.length ])
+    )
+}
+
+export const classifyBlendshapes = (scores, baseline = {}) => {
+    if (!scores) return null
+    const score = (name) => scores[name] || 0
+    const base = (name) => baseline[name] || 0
+    const aboveThreshold = (name, floor, baselineDelta) =>
+        score(name) >= Math.max(floor, base(name) + baselineDelta)
+
+    if (
+        aboveThreshold("jawOpen", 0.4, 0.2) &&
+        aboveThreshold("browInnerUp", 0.3, 0.15)
+    ) {
+        return "surprised"
+    }
+
+    if (
+        aboveThreshold("mouthSmileLeft", 0.4, 0.18) &&
+        aboveThreshold("mouthSmileRight", 0.4, 0.18)
+    ) {
+        return "happy"
+    }
+
+    const frownScore = (score("mouthFrownLeft") + score("mouthFrownRight")) / 2
+    const baselineFrown = (base("mouthFrownLeft") + base("mouthFrownRight")) / 2
+    if (frownScore >= Math.max(0.25, baselineFrown + 0.15)) {
+        return "sad"
+    }
+
+    return "neutral"
+}

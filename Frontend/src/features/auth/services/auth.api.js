@@ -27,6 +27,6 @@ export async function getMe() {
 }
 
 export async function logout() {
-    const response = await api.get("/api/auth/logout")
+    const response = await api.post("/api/auth/logout")
     return response.data
 }

@@ -46,6 +46,19 @@
         gap: 3px;
     }
 
+    &__error {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        padding: 7px 12px;
+        border: 1px solid rgba(255, 154, 114, 0.45);
+        border-radius: 8px;
+        background: #292929;
+        color: #ffb092;
+        font-size: 0.8rem;
+        transform: translateX(-50%);
+    }
+
     &__now-playing {
         color: #858585;
         font-size: 0.58rem;

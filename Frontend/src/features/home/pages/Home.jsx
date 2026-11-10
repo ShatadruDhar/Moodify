@@ -6,7 +6,7 @@ import './home.scss'
 
 const Home = () => {
 
-    const { handleGetSong } = useSong()
+    const { handleGetSong, error: songError } = useSong()
 
     return (
         <div className="home-shell">
@@ -31,12 +31,11 @@ const Home = () => {
                     <div className="mood-panel__top">
                         <div>
                             <h2>Check in with yourself</h2>
-                            <p>Allow camera access, then detect your mood.</p>
+                            <p>Allow camera access and hold a neutral expression during calibration.</p>
                         </div>
                     </div>
-                    <FaceExpression
-                        onClick={(expression) => { handleGetSong({ mood: expression }) }}
-                    />
+                    <FaceExpression onClick={(mood) => handleGetSong({ mood })} />
+                    {songError && <p className="home-song-error" role="alert">{songError}</p>}
                     <div className="mood-panel__moods" aria-label="Available moods">
                         <span>Happy</span>
                         <span>Sad</span>

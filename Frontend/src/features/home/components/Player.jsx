@@ -24,6 +24,7 @@ const Player = () => {
     const [volume, setVolume] = useState(1)
     const [showSpeed, setShowSpeed] = useState(false)
     const [isMuted, setIsMuted] = useState(false)
+    const [playbackError, setPlaybackError] = useState("")
 
     // Reset player when song changes
     useEffect(() => {
@@ -32,15 +33,26 @@ const Player = () => {
         }
     }, [song?.url])
 
-    const togglePlay = () => {
+    useEffect(() => {
+        if (audioRef.current) audioRef.current.playbackRate = speed
+    }, [speed])
+
+    const togglePlay = async () => {
         const audio = audioRef.current
         if (!audio) return
         if (isPlaying) {
             audio.pause()
+            setIsPlaying(false)
         } else {
-            audio.play()
+            setPlaybackError("")
+            try {
+                await audio.play()
+                setIsPlaying(true)
+            } catch {
+                setIsPlaying(false)
+                setPlaybackError("Unable to play this track. Try another song.")
+            }
         }
-        setIsPlaying(!isPlaying)
     }
 
     const skip = (secs) => {
@@ -54,7 +66,9 @@ const Player = () => {
     }
 
     const handleLoadedMetadata = () => {
-        setDuration(audioRef.current.duration)
+        setPlaybackError("")
+        audioRef.current.playbackRate = speed
+        setDuration(Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : 0)
         setCurrentTime(0)
         setIsPlaying(false)
     }
@@ -70,7 +84,7 @@ const Player = () => {
 
     const handleSpeedChange = (s) => {
         setSpeed(s)
-        audioRef.current.playbackRate = s
+        if (audioRef.current) audioRef.current.playbackRate = s
         setShowSpeed(false)
     }
 
@@ -109,7 +123,9 @@ const Player = () => {
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onEnded={handleSongEnd}
+                onError={() => setPlaybackError("Unable to load this track. Try another song.")}
             />
+            {playbackError && <p className="player__error" role="status">{playbackError}</p>}
 
             {/* Poster + Info */}
             <div className="player__info">
